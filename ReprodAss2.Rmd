@@ -1,0 +1,137 @@
+---
+title: 'Cost of weather events : Injuries, fatalities and economic loss'
+author: "Peter Ho"
+date: "August 22, 2015"
+output: pdf_document
+---
+##1. Sypnosis##
+This is the HTML report produced as a submission for Assignment 2 of Reproducible Report. We are given the task of analysing the data acquired from the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. The goal of the analysis is to present the severity of weather events, in terms of the afflicted victims' well-being, as well as the economic cost of weather events. Tornados are the most hazardous weather event, in terms of injuries and deaths. Floods causes the most property damage, while droughts are most hazardous to economic loss for crops. In terms of sheer economic damage to both property and crops, floods are the most damaging weather event.
+
+##2. Data Processing##
+
+In this section, we described how the required data set is read using R code. The process begins by first loading the necessary libraries.
+```{r library }
+library(knitr)
+opts_chunk$set(echo = TRUE, results = 'hold')#load knitr library
+library(data.table)#load data table library
+library(ggplot2) # we shall use ggplot2 for plotting figures
+library(zoo)#for filling in missing values
+```
+
+Subsequently, the required data set is read using the *read.scv()* function, which can even read compressed data, such as the data set that we are using.
+
+```{r readcsv}
+file_location <- "C:/Users/PeterYvonne/Documents/ReprodAss2/ReprodAss2/repdata-data-StormData.csv.bz2"
+data <- read.csv(file_location)
+save(data, file="oridata.saved")#toprevent long loading of original data should there be a need to rollback
+data$EVTYPE=toupper(data$EVTYPE) #set column headers to uppercase
+head(data)#show first several rows of a dataset
+
+```
+
+##3. Results##
+
+###3.1 Most injuries and fatalities###
+
+In this section we will take a look at injuries and fatalities caused by weather events. 
+The columns of interest to us at this point would be the EVTYTPE (Event type), INJURIES and FATALITIES.
+
+We start off with injuries caused by weather event. Here, we sum the total number of injuries caused by a particular weather event, and we subsequently list the top-10 weather events that causes the most number of *injuries*. The code snippet below shows how this is done:
+
+```{r Injuries}
+injury <- aggregate(INJURIES ~ EVTYPE, data = data, sum)
+actualinjury <- injury[injury$INJURIES > 0, ]#events which caused at least one injury
+orderedinjury<-actualinjury[order(actualinjury$INJURIES, decreasing = TRUE), ] 
+head(orderedinjury)
+```
+
+Subsequently, we move on to more serious effects of weather events, namely deaths caused by weather events. We give this the same treatment as the injury data, namely aggregating by summing up total number of deaths and ordering the list so that the top-10 weather events which causes *fatalities* are shown using the following code snippet.
+
+```{r fatalities}
+fatality <- aggregate(FATALITIES ~ EVTYPE, data = data, sum)
+actualfatality <- fatality[fatality$FATALITIES > 0, ]#events which caused at least one injury
+orderedfatality <-actualfatality[order(actualfatality$FATALITIES, decreasing = TRUE), ] 
+head(orderedfatality)
+```
+
+To make a comparison visually, a 2-panel graph plot is shown using the next block of code. This graph plot shows visually which weather events causes the most injuries and fatalities. From the graph plot, it is clear that *_tornados_* are the single most dangerous weather event that one can be exposed to.
+
+```{r plot injuries and fatalities}
+par(mfrow = c(2, 1))
+barplot(orderedinjury[1:10, 2], col = rainbow(10), legend.text = orderedinjury[1:10, 
+                                                                         1], ylab = "Injuries", main = "10 natural events cause most injuries")
+barplot(orderedfatality[1:10, 2], col = rainbow(10), legend.text = orderedfatality[1:10, 
+                                                                           1], ylab = "Fatalities", main = "10 natural events that causes the most fatalities")
+```
+
+###3.2 Most economic loss###
+
+We would next like to examine which weather events causes the most economic loss. Before we can aggregate the data, we need to do some preprocessing.
+
+A quick inspection of the supporting document for the data set reveals that data found in the PROPDMG and CROPDMG columns has different scales, and the scales are shown in both the PROPDMGEXP and CROPDMGEXP. As such, we need to transform the value of the PROPDMG AND CROPDMGS into unit values of 1 USD.
+
+The following code snippets accomplishes this purpose.
+
+```{r standardize}
+data[data$PROPDMGEXP == "K", ]$PROPDMG <- data[data$PROPDMGEXP == "K", ]$PROPDMG * 
+  1000
+data[data$PROPDMGEXP == "M", ]$PROPDMG <- data[data$PROPDMGEXP == "M", ]$PROPDMG * 
+  1e+06
+data[data$PROPDMGEXP == "m", ]$PROPDMG <- data[data$PROPDMGEXP == "m", ]$PROPDMG * 
+  1e+06
+data[data$PROPDMGEXP == "B", ]$PROPDMG <- data[data$PROPDMGEXP == "B", ]$PROPDMG * 
+  1e+09
+data[data$CROPDMGEXP == "K", ]$CROPDMG <- data[data$CROPDMGEXP == "K", ]$CROPDMG * 
+  1000
+data[data$CROPDMGEXP == "k", ]$CROPDMG <- data[data$CROPDMGEXP == "k", ]$CROPDMG * 
+  1000
+data[data$CROPDMGEXP == "M", ]$CROPDMG <- data[data$CROPDMGEXP == "M", ]$CROPDMG * 
+  1e+06
+data[data$CROPDMGEXP == "m", ]$CROPDMG <- data[data$CROPDMGEXP == "m", ]$CROPDMG * 
+  1e+06
+data[data$CROPDMGEXP == "B", ]$CROPDMG <- data[data$CROPDMGEXP == "B", ]$CROPDMG * 
+  1e+09
+```
+
+Once the amount of damages is standardized, we then perform the same aggregation as was done in Section 3.1. This is similar in effect as a SQL GROUPBY and ORDERBY operation and can be seen in the following chunk of code. We first focus on *property* damage.
+
+```{r property damage}
+damage <- aggregate(PROPDMG ~ EVTYPE, data = data, sum)
+actualdamage <- damage[damage$PROPDMG > 0, ]#events which caused at least one USD worth of damage
+ordereddamage<-actualdamage[order(actualdamage$PROPDMG, decreasing = TRUE), ] 
+head(ordereddamage)
+```
+Floods causes the most damage by far, followed by hurricanes and typhons.
+
+We then move our focus to economic damage caused by weather events to crops. The same set of procedures is applied to *crops*, using the following code.
+
+```{r crop damage}
+damagecrop <- aggregate(CROPDMG ~ EVTYPE, data = data, sum)
+actualdamagecrop <- damagecrop[damagecrop$CROPDMG > 0, ]#events which caused at least one USD worth of damage
+ordereddamagecrop<-actualdamagecrop[order(actualdamagecrop$CROPDMG, decreasing = TRUE), ] 
+head(ordereddamagecrop)
+```
+
+Another plot shows the  a comparison of damage caused to property and crops, according to different weather events.
+
+```{r plot of damage to property and crop}
+par(mfrow = c(2, 1))
+barplot(ordereddamage[1:10, 2], col = rainbow(10), legend.text = ordereddamage[1:10, 
+                                                                           1], ylab = "Property damage", main = "10 natural events caused most property damage")
+barplot(ordereddamagecrop[1:10, 2], col = rainbow(10), legend.text = ordereddamagecrop[1:10, 
+                                                                             1], ylab = "Crop damage", main = "10 natural events caused most crop damage")
+```
+
+Drought causes the most damage to crops, follwed by flood. A simple deduction can be made that in terms of economic damage, floods have the most effect on property and crop damages.
+
+This deduction is proven by our final analysis. We merge the two data objects containing the ordered list of property and crop damage, and add the total amount of damage.  The outcome is shown on a plot using the following code snippet.
+
+```{r total damage}
+totaldmg <- merge(ordereddamage, ordereddamagecrop, by = "EVTYPE")
+totaldmg$total = totaldmg$PROPDMG + totaldmg$CROPDMG
+totaldmgorder <- totaldmg[order(totaldmg$total, decreasing = TRUE), ]
+totaldmgorder[1:5, ]
+barplot(totaldmgorder[1:5, 2 ], col = rainbow(10), legend.text = totaldmgorder[1:5, 1], ylab = "Total damage", main = "Total damage", xlab = "Events")
+
+```
+
